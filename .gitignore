@@ -1,0 +1,12 @@
+*.pyc
+
+# ide
+.idea/
+*.png
+*.params
+*.pdf
+*.json
+*.swp
+*.mat
+*.log
+.states
