@@ -206,6 +206,7 @@ class SoftmaxOutputOp : public Operator {
          }
         }
           Copy(grad, grad_cpu, grad.stream_);
+          FreeSpace(grad_cpu);
         valid_cnt = valid_cnt == 0 ? 1 : valid_cnt;
       } else {
         valid_cnt = 1;
