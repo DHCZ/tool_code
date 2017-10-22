@@ -10,21 +10,23 @@ from obj_detect.tester import ObjectDetectionTester
 
 class BoundFitter(object):
     # theta, b
-    ps_range = [ 0.2, 20]
+    ps_range = [0.2, 20]
 
     def __init__(self):
         self.bound_param = None
-        
+        self.pts = None
     def fit(self, box, score_img, seg_img, vis=False, freq=20):
         box_w, box_h = box[2] - box[0], box[3] - box[1]
         if self.bound_param is None:
+            # TODO
+            # find better initial search space
             theta = np.linspace(-1, 1, freq)
             if (box[0] + box[2]) / 2. < 640:
                 theta = np.linspace(-np.pi/2, 0, freq)
                 b = np.linspace(box_w, 2 * box_w, freq)
             else:
-                theta = np.linspace(0, np.pi/2, freq)
-                b = np.linspace(-2 * box_w, 0, freq)
+                theta = np.linspace(-np.pi/2, np.pi/2, freq)
+                b = np.linspace(-box_w, box_w, freq)
         else:
             theta = np.linspace(self.bound_param[0] - self.ps_range[0], self.bound_param[0] + self.ps_range[0], freq)
             b = np.linspace(self.bound_param[1] - self.ps_range[1], self.bound_param[1] + self.ps_range[1], freq)
@@ -50,12 +52,9 @@ class BoundFitter(object):
                 min_score = score
                 min_score_pts = pts
                 min_p = p
-        index = min_score_pts[0]<box[2]
-        min_score_pts[0] = min_score_pts[0][index]
-        min_score_pts[1] = min_score_pts[1][index]
         # TODO
         # remov bad initial state
-        if len(min_score_pts[0]) < 5:
+        if min_score_pts is None or len(min_score_pts[0]) < 5:
             return None, min_score_pts, min_score
         return min_p, min_score_pts, min_score
 
@@ -67,10 +66,12 @@ class BoundFitter(object):
         k = np.tan(p[0])
         hx = np.linspace(0, box_h, 40)
         wy = k * hx + p[1]
-        index = (wy+box[0])< box[2]
-        hx = hx[index]
-        wy = wy[index]
-        if len(hx) <= 2 or len(wy) <= 2:
+        # choose the point in bbox
+        index =wy< box_w
+        index2 = wy[index] > 0
+        hx = hx[index][index2]
+        wy = wy[index][index2]
+        if len(hx) <= 3 :
             return  sys.maxint, []
         pts = [wy + box[0], hx + box[1]]
         k2 = 0 if k==0 else -1/k
@@ -102,16 +103,18 @@ def color2label(img):
 
 def test_main():
     bfs = {}
-    forward_config_path = '//home/dhc/workspace/octopus/ros/src/perception/perception_master/library/octopus-ia-objdetect/config/shanqi_forward_cams.config'
+    forward_config_path = '/home/dhc/workspace/octopus/ros/src/perception/perception_master/library/octopus-ia-objdetect/config/shanqi_forward_cams.config'
     forward_cfg = ConfigParser.ConfigParser()
     forward_cfg.read(forward_config_path)
-    track_config_path = '//home/dhc/workspace/octopus/ros/src/perception/perception_master/library/octopus-ia-tracking/config/tracking.config'
+    track_config_path = '/home/dhc/workspace/octopus/ros/src/perception/perception_master/library/octopus-ia-tracking/config/tracking.config'
     obj = ObjectDetectionTester(cfg=forward_cfg)
     trk = pipe.Pipeline(track_config_path)
-    dir_path = '/home/dhc/result'
-    for index in range(0, 300):
-        img_path = join(dir_path, str(index) + '.jpg')
+    dir_path = '/home/dhc/dhc'
+    for index in range(700, 4000):
+        img_path = join(dir_path, 'imgs'+str(index) + '.jpg')
         img = cv2.imread(img_path)
+        if img is None:
+            continue
         ori_img = img[:720, :1280]
         seg_img = img[720:, :1280]
         score_img, seg_img = color2label(seg_img)
