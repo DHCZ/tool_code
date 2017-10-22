@@ -10,7 +10,7 @@ from obj_detect.tester import ObjectDetectionTester
 
 class BoundFitter(object):
     # theta, b
-    ps_range = [0.2, 20]
+    ps_range = [0.2, 10]
 
     def __init__(self):
         self.bound_param = None
@@ -22,10 +22,10 @@ class BoundFitter(object):
             # find better initial search space
             theta = np.linspace(-1, 1, freq)
             if (box[0] + box[2]) / 2. < 640:
-                theta = np.linspace(-np.pi/2, 0, freq)
+                theta = np.linspace(-np.pi/4, 0, freq)
                 b = np.linspace(box_w, 2 * box_w, freq)
             else:
-                theta = np.linspace(-np.pi/2, np.pi/2, freq)
+                theta = np.linspace(-np.pi/4, np.pi/4, freq)
                 b = np.linspace(-box_w, box_w, freq)
         else:
             theta = np.linspace(self.bound_param[0] - self.ps_range[0], self.bound_param[0] + self.ps_range[0], freq)
@@ -37,7 +37,7 @@ class BoundFitter(object):
     def search(box, score_img, seg_img, param_grid, vis=False):
         if vis:
             cv2.rectangle(seg_img, (int(box[0]), int(box[1])), (int(box[2]), int(box[3])), (0, 255, 0), 2)
-        min_p, min_score, min_score_pts = None, sys.maxint, None
+        max_p, max_score, max_score_pts = None, -1, None
         for p in product(param_grid[0], param_grid[1]):
             score, pts = BoundFitter.score_of_line(box, score_img, p)
             if vis:
@@ -48,15 +48,15 @@ class BoundFitter(object):
                             color=(0, 0, 255), thickness=2)
                 cv2.imshow('', img)
                 cv2.waitKey(10)
-            if score < min_score:
-                min_score = score
-                min_score_pts = pts
-                min_p = p
+            if score > max_score:
+                max_score = score
+                max_score_pts = pts
+                max_p = p
         # TODO
         # remov bad initial state
-        if min_score_pts is None or len(min_score_pts[0]) < 5:
-            return None, min_score_pts, min_score
-        return min_p, min_score_pts, min_score
+        if max_score_pts is None or len(max_score_pts[0]) < 5:
+            return None, max_score_pts, max_score
+        return max_p, max_score_pts, max_score
 
 
 
@@ -67,23 +67,29 @@ class BoundFitter(object):
         hx = np.linspace(0, box_h, 40)
         wy = k * hx + p[1]
         # choose the point in bbox
-        index =wy< box_w
+        index = wy<  box_w
         index2 = wy[index] > 0
         hx = hx[index][index2]
         wy = wy[index][index2]
-        if len(hx) <= 3 :
-            return  sys.maxint, []
+        if len(hx) <= 3 or abs(p[0])>np.pi/4:
+            return  -1, []
         pts = [wy + box[0], hx + box[1]]
         k2 = 0 if k==0 else -1/k
         left_pts, right_pts = [[np.array([]), np.array([])], [np.array([]),np.array([])]]
-        for grid in (6, 5):
+        for grid in (1, 2, 3, 4, 5, 6):
             left_pts[0] = np.append(left_pts[0], np.clip(wy + box[0]-grid, 0, 1279))
             left_pts[1] = np.append(left_pts[1], np.clip(hx+ box[1]-grid*k2 , 0, 719))
             right_pts[0] = np.append(right_pts[0], np.clip(wy + box[0] + grid , 0, 1279)) 
             right_pts[1] = np.append(right_pts[1], np.clip(hx + box[1] + grid * k2 , 0, 719))
         left_sc, right_sc = seg[left_pts[1].astype(int), left_pts[0].astype(
             int)], seg[right_pts[1].astype(int), right_pts[0].astype(int)]
-        score = np.mean(abs(left_sc + right_sc))
+        # score function
+        # k*num_of_zeros
+        # mix k to prevent vertical
+        sum_result = left_sc + right_sc
+        zeros_num = len(sum_result[sum_result==0])
+        score = abs(k * zeros_num)
+        print score
         return score, pts
 
 def color2label(img):
@@ -110,7 +116,7 @@ def test_main():
     obj = ObjectDetectionTester(cfg=forward_cfg)
     trk = pipe.Pipeline(track_config_path)
     dir_path = '/home/dhc/dhc'
-    for index in range(700, 4000):
+    for index in range(2000, 4000):
         img_path = join(dir_path, 'imgs'+str(index) + '.jpg')
         img = cv2.imread(img_path)
         if img is None:
