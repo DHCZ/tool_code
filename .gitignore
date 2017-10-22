@@ -2,9 +2,11 @@
 
 # ide
 .idea/
+*.mp4
 *.png
 *.params
 *.pdf
+*.jpg
 *.json
 *.swp
 *.mat
