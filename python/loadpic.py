@@ -43,6 +43,8 @@ if __name__ =='__main__':
     for msg in bag.read_messages(topics=['/camera'+ cam_no + '/image_color/compressed']):
     # for msg in bag.read_messages(topics=['/stereo/'+ cam_no + '/compressed']):
     	count += 1
+        #if count %10 != 0:
+        #    continue
         cluster = msg[1].header.seq/5000
         print "In cluster ",cluster
         filepath = os.path.join(output, str(cluster))
@@ -50,6 +52,6 @@ if __name__ =='__main__':
             os.makedirs(filepath)
         cv_image = bridge.compressed_imgmsg_to_cv2(msg[1],'passthrough')
         # cv_image = bridge.imgmsg_to_cv2(msg[1],'bgr8')
-        cv2.imwrite(os.path.join(filepath+'{:7}.jpg'.format(count)), cv_image)
+        cv2.imwrite(os.path.join(filepath, '{0:7}.jpg'.format(count)), cv_image)
         # cv2.imwrite(os.path.join(filepath,str(count)+'.jpg'), cv_image)
 

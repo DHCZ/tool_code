@@ -10,7 +10,7 @@ from obj_detect.tester import ObjectDetectionTester
 
 class BoundFitter(object):
     # theta, b
-    ps_range = [0.2, 10]
+    ps_range = [0.3, 10]
 
     def __init__(self):
         self.bound_param = None
@@ -22,7 +22,7 @@ class BoundFitter(object):
             # find better initial search space
             theta = np.linspace(-1, 1, freq)
             if (box[0] + box[2]) / 2. < 640:
-                theta = np.linspace(-np.pi/4, 0, freq)
+                theta = np.linspace(-np.pi/4, np.pi/4, freq)
                 b = np.linspace(box_w, 2 * box_w, freq)
             else:
                 theta = np.linspace(-np.pi/4, np.pi/4, freq)
@@ -77,7 +77,7 @@ class BoundFitter(object):
         k2 = 0 if k==0 else -1/k
         score = 0
         left_pts, right_pts = [[np.array([]), np.array([])], [np.array([]),np.array([])]]
-        for grid in (1, 2, 3, 4, 5 ):
+        for grid in (1, 2, ):
             left_pts[0] = np.clip(wy + box[0]-grid, 0, 1279).astype(int)
             left_pts[1] = np.clip(hx+ box[1]-grid*k2 , 0, 719)
             right_pts[0] = np.clip(wy + box[0] + grid , 0, 1279)
@@ -85,14 +85,14 @@ class BoundFitter(object):
             left_sc, right_sc = seg[left_pts[1].astype(int), left_pts[0].astype(
                 int)], seg[right_pts[1].astype(int), right_pts[0].astype(int)]
             sum_result = left_sc + right_sc
-            zeros_num = len(sum_result[sum_result==0])
-            score += abs(k * zeros_num / grid)   
+            zeros_num = len(sum_result[sum_result==0]) / float(len(sum_result))
+            score += abs(k *zeros_num )   
         # score function
         # k*num_of_zeros
         # mix k to prevent vertical
-        sum_result = left_sc + right_sc
-        zeros_num = len(sum_result[sum_result==0])
-        score = abs(k * zeros_num )
+        #sum_result = left_sc + right_sc
+        #zeros_num = len(sum_result[sum_result==0])
+        #score = abs(k * zeros_num )
         return score, pts
 
 def color2label(img):
@@ -119,7 +119,7 @@ def test_main():
     obj = ObjectDetectionTester(cfg=forward_cfg)
     trk = pipe.Pipeline(track_config_path)
     dir_path = '/home/dhc/dhc'
-    for index in range(20, 4000):
+    for index in range(2000, 4000):
         img_path = join(dir_path, 'imgs'+str(index) + '.jpg')
         img = cv2.imread(img_path)
         if img is None:
@@ -138,7 +138,7 @@ def test_main():
                 bfs[b[-1]] = BoundFitter()
             bf = bfs[b[-1]]
             p, pts, score = bf.fit(b, score_img, seg_img, vis=False)
-            cv2.namedWindow('result', flags=cv2.CV_WINDOW_AUTOSIZE)
+            cv2.namedWindow('result')
             if p is not None:
                 cv2.line(seg_img,
                             (int(pts[0][0]), int(pts[1][0])),

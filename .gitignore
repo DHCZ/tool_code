@@ -9,6 +9,7 @@
 *.jpg
 *.json
 *.swp
+*.tar
 *.mat
 *.log
 .states
