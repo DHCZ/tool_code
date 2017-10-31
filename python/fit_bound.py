@@ -10,7 +10,7 @@ from obj_detect.tester import ObjectDetectionTester
 
 class BoundFitter(object):
     # theta, b
-    ps_range = [0.3, 10]
+    ps_range = [0.2, 20]
 
     def __init__(self):
         self.bound_param = None
@@ -64,7 +64,7 @@ class BoundFitter(object):
     def score_of_line(box, seg, p):
         box_w, box_h = box[2] - box[0], box[3] - box[1]
         k = np.tan(p[0])
-        hx = np.linspace(0, box_h, 20)
+        hx = np.linspace(0, box_h, 15)
         wy = k * hx + p[1]
         # choose the point in bbox
         index = wy<  box_w
