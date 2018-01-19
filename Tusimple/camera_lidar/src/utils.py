@@ -24,13 +24,14 @@ def load_params(file_name):
     return intrinsic, distort, l2c_tf
 
 def project_pts(lidar_pts, l2c_tf, intrinsic, distort, depth_range=(0, 50), height_range=[-0.5, 10],  x_limit=1280, y_limit=720):
+    
     lidar_pts = np.concatenate((lidar_pts[:, 0: 3], np.ones((lidar_pts.shape[0], 1))), 1)
     cam_pts_3d = np.dot(l2c_tf, lidar_pts.T)
     ind1 = cam_pts_3d[2, :] > depth_range[0]
     ind2 = cam_pts_3d[2, :] < depth_range[1]
     #ind3 = cam_pts_3d[1, :] > height_range[0]
     #ind4 = cam_pts_3d[1, :] < height_range[1]
-    cam_pts_3d = cam_pts_3d[0: 3, ind1 & ind2 ].T
+    cam_pts_3d = cam_pts_3d[0:3: , ind1 & ind2 ].T
     cam_pts_2d, jacobian = cv2.projectPoints(np.array([cam_pts_3d]), np.identity(3), np.zeros((1, 3)), intrinsic, distort)
 
     cam_pts_2d = cam_pts_2d[:, 0, :]
@@ -45,4 +46,5 @@ def project_pts(lidar_pts, l2c_tf, intrinsic, distort, depth_range=(0, 50), heig
     I = I1 & I2
     cam_pts_2d = cam_pts_2d[I, :]
     cam_pts_3d = cam_pts_3d[I, :]
+
     return cam_pts_3d, cam_pts_2d
