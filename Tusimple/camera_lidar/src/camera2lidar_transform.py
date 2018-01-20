@@ -11,7 +11,7 @@ import ConfigParser
 from mot_tracking import pipe
 
 class ImageGetter(object):
-    def __init__(self):
+    def __init__(self, cam_id=1):
         self.img_time = 0
         self.pd_time = 0
         self.img = None
@@ -23,10 +23,12 @@ class ImageGetter(object):
         self.img_time_list = []
 
         self.img_sub = rospy.Subscriber(
-            'camera3/image_color/compressed', CompressedImage, self.get_img, queue_size=1)
+            'camera{}/image_color/compressed'.format(cam_id), CompressedImage, self.get_img, queue_size=1)
 
+        lidar_sub = '/rslidar_points'
+        lidar_sub = '/points_segmented'
         self.lidar_sub = rospy.Subscriber(
-            '/points_segmented', PointCloud2, self.get_pd, queue_size=1)
+           lidar_sub, PointCloud2, self.get_pd, queue_size=1)
 
     def get_img(self, data):
 
@@ -102,14 +104,14 @@ class camera2lidar_trainsform:
         if lidar_pts is None:
             return None
         self.height, self.width = img.shape[: 2]
-        cam_pts_3d, cam_pts_2d = project_pts(
-            lidar_pts, self.lidar_rot, self.cam_mats['left'], self.dist_coefs['left'], (0, 50), (-20, -2), self.width, self.height)
+        cam_pts_3d, cam_pts_2d, lidat_pts_proj = project_pts(
+            lidar_pts, self.lidar_rot, self.cam_mats['left'], self.dist_coefs['left'], (0, 200), (-20, -2), self.width, self.height)
         for i, pt in enumerate(cam_pts_2d):
             cv2.circle(img, (int(pt[0]), int(
                 pt[1])), 2, self.color_map[lidar_pts[i,4]], thickness=3, lineType=8, shift=0)
-        return img, cam_pts_2d, cam_pts_3d
+        return img, cam_pts_2d, cam_pts_3d, lidat_pts_proj
 
-    def get_location(self, bbox_list, cam_pts_2d, cam_pts_3d):
+    def get_location(self, bbox_list, cam_pts_2d, cam_pts_3d, lidar_pts):
         '''
         get the location of bbox by point cloud
         '''
@@ -122,7 +124,14 @@ class camera2lidar_trainsform:
             ind3 = cam_pts_2d[:,0]<bbox[2]
             ind4 = cam_pts_2d[:,1]<bbox[3]
             bbox_depth = cam_pts_3d[ind1&ind2&ind3&ind4][:, 2]
-            bbox_depth_list.append(np.median(bbox_depth))
+            seg_class = set(lidar_pts[ind1&ind2&ind3&ind4][:])
+            if len(bbox_depth) == 0 or len(seg_class) == 0:
+                # TODO handle the conner case
+                bbox_depth_list.append(np.median(bbox_depth)) 
+            else:
+                depth_list = [bbox_depth[lidar_pts[ind1&ind2&ind3&ind4][:] == seg] for seg in seg_class]
+                depth_list_median = [np.median(depth)  for depth in depth_list]
+                bbox_depth_list.append(min(depth_list_median))
         return bbox_depth_list
 
 
@@ -143,8 +152,8 @@ if __name__ == "__main__":
     # img = cv2.imread(img_file)
     # lidar_pts = pd.read_csv(lidar_file, header = None, sep = ' ', skiprows=11).values[:, 0: 3]
     rospy.init_node('canera_lidat_transform')
-    ig = ImageGetter()
-    camera_trans = camera2lidar_trainsform('./config/cam3.yaml')
+    ig = ImageGetter(cam_id=1)
+    camera_trans = camera2lidar_trainsform('./config/cam1.yaml')
 
     obj, trk= init_detector()
     while True:
@@ -161,8 +170,8 @@ if __name__ == "__main__":
         trks = trk.process(img, res, [])
         dets = [[b[0] * 1280, b[1] * 720, b[2] * 1280, b[3] * 720, trks[i]] for i, b in enumerate(res)]
 
-        img, cam_pts_2d, cam_pts_3d = camera_trans.rectify(img, lidar)
-        bbox_depth_list = camera_trans.get_location(dets,cam_pts_2d, cam_pts_3d)
+        img, cam_pts_2d, cam_pts_3d, lidar_pts = camera_trans.rectify(img, lidar)
+        bbox_depth_list = camera_trans.get_location(dets,cam_pts_2d, cam_pts_3d, lidar_pts)
         for b,depth in zip(dets, bbox_depth_list):
             cv2.rectangle(img, (int(b[0]), int(b[1])), (int(b[2]), int(b[3])), (0, 255, 0), 2)
             cv2.putText(img, str(depth), (int(b[0]), int(b[1])), cv2.FONT_HERSHEY_SIMPLEX, 1,(255,0,255),2,cv2.LINE_AA )
