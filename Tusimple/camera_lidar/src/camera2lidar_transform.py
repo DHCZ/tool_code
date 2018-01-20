@@ -82,22 +82,22 @@ class ColorMap:
 
 
 class camera2lidar_trainsform:
-    def __init__(self, params_yaml):
+    def __init__(self, params_yaml, depth_range=(0, 200), height_range=(-20, -2)):
 
-        self.max_depth = 1000
-        self.min_depth = 0
 
+        self.depth_range = depth_range
+        self.height_range = height_range
         self.color_map = ColorMap((255, 0, 0), (0, 0, 255), 0, 200)
 
-        self.cam_mats = {"left": None, "right": None}
-        self.dist_coefs = {"left": None, "right": None}
-        self.rect_rot = {"left": None, "right": None}
+        self.cam_mats = {"cam1": None, "cam2": None}
+        self.dist_coefs = {"cam1": None, "cam2t": None}
+        self.rect_rot = {"cam1": None, "cam2": None}
         self.color_map = ColorMap((255, 0, 0), (0, 0, 255), 0, 100)
-        self.proj_mats = {"left": None, "right": None}
-        self.undistortion_map = {"left": None, "right": None}
-        self.rectification_map = {"left": None, "right": None}
+        self.proj_mats = {"cam1": None, "cam2": None}
+        self.undistortion_map = {"cam1": None, "cam2": None}
+        self.rectification_map = {"cam1": None, "cam2": None}
 
-        self.cam_mats['left'], self.dist_coefs['left'], self.lidar_rot = load_params(
+        self.cam_mats['cam1'], self.dist_coefs['cam1'], self.lidar_rot = load_params(
             params_yaml)
 
     def rectify(self, img, lidar_pts):
@@ -105,7 +105,7 @@ class camera2lidar_trainsform:
             return None
         self.height, self.width = img.shape[: 2]
         cam_pts_3d, cam_pts_2d, lidat_pts_proj = project_pts(
-            lidar_pts, self.lidar_rot, self.cam_mats['left'], self.dist_coefs['left'], (0, 200), (-20, -2), self.width, self.height)
+            lidar_pts, self.lidar_rot, self.cam_mats['cam1'], self.dist_coefs['cam1'], self.depth_range, self.height_range, self.width, self.height)
         for i, pt in enumerate(cam_pts_2d):
             cv2.circle(img, (int(pt[0]), int(
                 pt[1])), 2, self.color_map[lidar_pts[i,4]], thickness=3, lineType=8, shift=0)
@@ -114,22 +114,26 @@ class camera2lidar_trainsform:
     def get_location(self, bbox_list, cam_pts_2d, cam_pts_3d, lidar_pts):
         '''
         get the location of bbox by point cloud
+        TODO: we choos the point in bbox to get location, However, when a large trunk  in the edge of image, 
+              the depth will not change.
+              may be we should use camera 6 ,7
         '''
         bbox_depth_list=[]
         cam_pts_2d = np.array(cam_pts_2d)
-        # print cam_pts_2d.shape
+       
         for bbox in bbox_list:
             ind1 = cam_pts_2d[:,0]>bbox[0]
             ind2 = cam_pts_2d[:,1]>bbox[1]
             ind3 = cam_pts_2d[:,0]<bbox[2]
             ind4 = cam_pts_2d[:,1]<bbox[3]
             bbox_depth = cam_pts_3d[ind1&ind2&ind3&ind4][:, 2]
-            seg_class = set(lidar_pts[ind1&ind2&ind3&ind4][:])
+            lidar_pts_valid = lidar_pts[ind1&ind2&ind3&ind4][:]
+            seg_class = set(lidar_pts_valid)
             if len(bbox_depth) == 0 or len(seg_class) == 0:
                 # TODO handle the conner case
                 bbox_depth_list.append(np.median(bbox_depth)) 
             else:
-                depth_list = [bbox_depth[lidar_pts[ind1&ind2&ind3&ind4][:] == seg] for seg in seg_class]
+                depth_list = [bbox_depth[lidar_pts_valid== seg] for seg in seg_class]
                 depth_list_median = [np.median(depth)  for depth in depth_list]
                 bbox_depth_list.append(min(depth_list_median))
         return bbox_depth_list
@@ -163,20 +167,22 @@ if __name__ == "__main__":
         #print diff_time / 1e6
         if img is None:
             continue
+        # get_bbox
         dets = obj.test_batch([img, img, img], visualize=False)['bboxes_percent'][0]
         res = []
         for d in dets:
             res.extend(d)
         trks = trk.process(img, res, [])
         dets = [[b[0] * 1280, b[1] * 720, b[2] * 1280, b[3] * 720, trks[i]] for i, b in enumerate(res)]
-
+        
+        #project ldiar pts to image
         img, cam_pts_2d, cam_pts_3d, lidar_pts = camera_trans.rectify(img, lidar)
         bbox_depth_list = camera_trans.get_location(dets,cam_pts_2d, cam_pts_3d, lidar_pts)
         for b,depth in zip(dets, bbox_depth_list):
             cv2.rectangle(img, (int(b[0]), int(b[1])), (int(b[2]), int(b[3])), (0, 255, 0), 2)
             cv2.putText(img, str(depth), (int(b[0]), int(b[1])), cv2.FONT_HERSHEY_SIMPLEX, 1,(255,0,255),2,cv2.LINE_AA )
+        cv2.imshow('camera_lidar', img)
         key = cv2.waitKey(1)
         if key == 27:  # press esc
             break
-        cv2.imshow('temp', img)
     rospy.spin()
