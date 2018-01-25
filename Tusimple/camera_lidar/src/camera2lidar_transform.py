@@ -25,7 +25,7 @@ class ImageGetter(object):
         self.img_sub = rospy.Subscriber(
             'camera{}/image_color/compressed'.format(cam_id), CompressedImage, self.get_img, queue_size=1)
 
-        lidar_sub = '/rslidar_points'
+        lidar_sub = '/left/rslidar_points'
         lidar_sub = '/points_segmented'
         self.lidar_sub = rospy.Subscriber(
            lidar_sub, PointCloud2, self.get_pd, queue_size=1)
@@ -129,6 +129,7 @@ class camera2lidar_trainsform:
             bbox_depth = cam_pts_3d[ind1&ind2&ind3&ind4][:, 2]
             lidar_pts_valid = lidar_pts[ind1&ind2&ind3&ind4][:]
             seg_class = set(lidar_pts_valid)
+            print seg_class
             if len(bbox_depth) == 0 or len(seg_class) == 0:
                 # TODO handle the conner case
                 bbox_depth_list.append(np.median(bbox_depth)) 
@@ -143,7 +144,7 @@ def init_detector():
     forward_config_path = '/home/hengchen.dai/workspace/octopus2/src/perception/master/library/octopus-ia-objdetect/config/shanqi_forward_cams.config'
     forward_cfg = ConfigParser.ConfigParser()
     forward_cfg.read(forward_config_path)
-    track_config_path = '//home/hengchen.dai/workspace/octopus2/src/perception/master/library/octopus-ia-tracking/config/tracking.config'
+    track_config_path = '/home/hengchen.dai/workspace/octopus2/src/perception/master/library/octopus-ia-tracking/config/tracking.config'
     obj = ObjectDetectionTester(cfg=forward_cfg)
     trk = pipe.Pipeline(track_config_path)
     return obj, trk

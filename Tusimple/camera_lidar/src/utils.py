@@ -39,7 +39,7 @@ def project_pts(lidar_pts, l2c_tf, intrinsic, distort, depth_range=(0, 50), heig
     #ind4 = cam_pts_3d[1, :] < height_range[1]
     cam_pts_3d = cam_pts_3d[0:3: ,ind1&ind2].T
     lidar_pts_seg =  lidar_pts.T
-    lidar_pts_seg = lidar_pts_seg[4, ind1&ind2].T
+    lidar_pts_seg = lidar_pts_seg[-1, ind1&ind2].T
 
     cam_pts_2d, jacobian = cv2.projectPoints(np.array([cam_pts_3d]), np.identity(3), np.zeros((1, 3)), intrinsic, distort)
 
